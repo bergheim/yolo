@@ -311,5 +311,64 @@ class TestModeValidation(unittest.TestCase):
         self.assertIn('exists', str(cm.exception.code).lower())
 
 
+class TestWorktreeDevcontainer(unittest.TestCase):
+    """Test worktree-specific devcontainer configuration."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.original_cwd = os.getcwd()
+
+    def tearDown(self):
+        os.chdir(self.original_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir)
+
+    def test_add_git_mount_to_devcontainer(self):
+        """Should add mount for main repo .git directory."""
+        import json
+
+        # Create a devcontainer.json
+        devcontainer_dir = Path(self.tmpdir) / '.devcontainer'
+        devcontainer_dir.mkdir()
+        json_file = devcontainer_dir / 'devcontainer.json'
+
+        original = {
+            "name": "test",
+            "mounts": ["source=/tmp,target=/tmp,type=bind"]
+        }
+        json_file.write_text(json.dumps(original))
+
+        # Add git mount
+        main_git_dir = Path('/home/user/project/.git')
+        yolo.add_worktree_git_mount(json_file, main_git_dir)
+
+        # Verify mount was added
+        updated = json.loads(json_file.read_text())
+        self.assertEqual(len(updated['mounts']), 2)
+
+        git_mount = updated['mounts'][1]
+        self.assertIn('/home/user/project/.git', git_mount)
+        self.assertIn('source=', git_mount)
+        self.assertIn('target=', git_mount)
+
+    def test_add_git_mount_creates_mounts_array(self):
+        """Should create mounts array if not present."""
+        import json
+
+        devcontainer_dir = Path(self.tmpdir) / '.devcontainer'
+        devcontainer_dir.mkdir()
+        json_file = devcontainer_dir / 'devcontainer.json'
+
+        original = {"name": "test"}
+        json_file.write_text(json.dumps(original))
+
+        main_git_dir = Path('/home/user/project/.git')
+        yolo.add_worktree_git_mount(json_file, main_git_dir)
+
+        updated = json.loads(json_file.read_text())
+        self.assertIn('mounts', updated)
+        self.assertEqual(len(updated['mounts']), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

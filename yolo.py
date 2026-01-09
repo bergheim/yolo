@@ -6,6 +6,7 @@ Target location: ~/.local/bin/yolo
 """
 
 import argparse
+import json
 import os
 import random
 import shutil
@@ -225,6 +226,25 @@ def validate_create_mode(name: str) -> None:
         sys.exit(f'Error: Directory already exists: {target_dir}')
 
 
+def add_worktree_git_mount(devcontainer_json_path: Path, main_git_dir: Path) -> None:
+    """Add a mount for the main repo's .git directory to devcontainer.json.
+
+    This is needed for worktrees because git worktrees use a .git file that
+    points to the main repo's .git/worktrees/NAME directory with an absolute
+    path. We need to mount that path into the container.
+    """
+    content = json.loads(devcontainer_json_path.read_text())
+
+    if 'mounts' not in content:
+        content['mounts'] = []
+
+    # Mount the main .git directory at the same absolute path in the container
+    git_mount = f'source={main_git_dir},target={main_git_dir},type=bind'
+    content['mounts'].append(git_mount)
+
+    devcontainer_json_path.write_text(json.dumps(content, indent=4))
+
+
 def devcontainer_up(workspace_dir: Path, remove_existing: bool = False) -> bool:
     """Start devcontainer with devcontainer up.
 
@@ -311,6 +331,11 @@ def run_tree_mode(args: argparse.Namespace) -> None:
         project_name = git_root.name
         container_name = get_container_name(str(git_root), worktree_name)
         scaffold_devcontainer(container_name, worktree_path)
+
+    # Add mount for main repo's .git directory so worktree git operations work
+    main_git_dir = git_root / '.git'
+    devcontainer_json = dst_devcontainer / 'devcontainer.json'
+    add_worktree_git_mount(devcontainer_json, main_git_dir)
 
     print(f'Created worktree: {worktree_path}')
     print(f'Branch: {worktree_name}')
