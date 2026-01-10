@@ -177,7 +177,7 @@ class TestTemplateSystem(unittest.TestCase):
         self.assertIn('"name": "testproject"', content)
 
     def test_scaffold_devcontainer_creates_dockerfile(self):
-        """Should create Dockerfile."""
+        """Should create Dockerfile with default base image."""
         os.chdir(self.tmpdir)
         yolo.scaffold_devcontainer('testproject')
 
@@ -185,6 +185,17 @@ class TestTemplateSystem(unittest.TestCase):
         self.assertTrue(dockerfile.exists())
         content = dockerfile.read_text()
         self.assertIn('FROM localhost/emacs-gui:latest', content)
+
+    def test_scaffold_devcontainer_uses_config_base_image(self):
+        """Should use base_image from config."""
+        os.chdir(self.tmpdir)
+        config = {'base_image': 'custom/myimage:v3'}
+        yolo.scaffold_devcontainer('testproject', config=config)
+
+        dockerfile = Path(self.tmpdir) / '.devcontainer' / 'Dockerfile'
+        content = dockerfile.read_text()
+        self.assertIn('FROM custom/myimage:v3', content)
+        self.assertNotIn('localhost/emacs-gui', content)
 
     def test_scaffold_warns_if_exists(self):
         """Should warn but not error if .devcontainer exists."""
@@ -390,6 +401,76 @@ class TestWorktreeDevcontainer(unittest.TestCase):
         updated = json.loads(json_file.read_text())
         self.assertIn('mounts', updated)
         self.assertEqual(len(updated['mounts']), 1)
+
+
+class TestConfigLoading(unittest.TestCase):
+    """Test TOML configuration loading."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.original_cwd = os.getcwd()
+
+    def tearDown(self):
+        os.chdir(self.original_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir)
+
+    def test_load_config_returns_defaults_when_no_files(self):
+        """Should return default config when no config files exist."""
+        os.chdir(self.tmpdir)
+        config = yolo.load_config(global_config_dir=Path(self.tmpdir) / 'noexist')
+
+        self.assertEqual(config['base_image'], 'localhost/emacs-gui:latest')
+        self.assertEqual(config['pass_path_anthropic'], 'api/llm/anthropic')
+        self.assertEqual(config['pass_path_openai'], 'api/llm/openai')
+
+    def test_load_global_config(self):
+        """Should load global config from ~/.config/yolo/config.toml."""
+        config_dir = Path(self.tmpdir) / '.config' / 'yolo'
+        config_dir.mkdir(parents=True)
+        (config_dir / 'config.toml').write_text('base_image = "custom/image:v1"\n')
+
+        config = yolo.load_config(global_config_dir=config_dir)
+
+        self.assertEqual(config['base_image'], 'custom/image:v1')
+
+    def test_load_project_config(self):
+        """Should load project config from .yolo.toml."""
+        os.chdir(self.tmpdir)
+        Path(self.tmpdir, '.yolo.toml').write_text('base_image = "project/image:v2"\n')
+
+        config = yolo.load_config(global_config_dir=Path(self.tmpdir) / 'noexist')
+
+        self.assertEqual(config['base_image'], 'project/image:v2')
+
+    def test_project_config_overrides_global(self):
+        """Project config should override global config."""
+        config_dir = Path(self.tmpdir) / '.config' / 'yolo'
+        config_dir.mkdir(parents=True)
+        (config_dir / 'config.toml').write_text('base_image = "global/image:v1"\n')
+
+        os.chdir(self.tmpdir)
+        Path(self.tmpdir, '.yolo.toml').write_text('base_image = "project/image:v2"\n')
+
+        config = yolo.load_config(global_config_dir=config_dir)
+
+        self.assertEqual(config['base_image'], 'project/image:v2')
+
+    def test_config_partial_override(self):
+        """Project config should only override specified keys."""
+        config_dir = Path(self.tmpdir) / '.config' / 'yolo'
+        config_dir.mkdir(parents=True)
+        (config_dir / 'config.toml').write_text(
+            'base_image = "global/image:v1"\npass_path_anthropic = "custom/path"\n'
+        )
+
+        os.chdir(self.tmpdir)
+        Path(self.tmpdir, '.yolo.toml').write_text('base_image = "project/image:v2"\n')
+
+        config = yolo.load_config(global_config_dir=config_dir)
+
+        self.assertEqual(config['base_image'], 'project/image:v2')
+        self.assertEqual(config['pass_path_anthropic'], 'custom/path')
 
 
 if __name__ == '__main__':

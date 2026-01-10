@@ -12,6 +12,7 @@ import random
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 # Word lists for random name generation
@@ -19,6 +20,44 @@ ADJECTIVES = ['brave', 'swift', 'calm', 'bold', 'keen',
               'wild', 'warm', 'cool', 'fair', 'wise']
 NOUNS = ['panda', 'falcon', 'river', 'mountain', 'oak',
          'wolf', 'hawk', 'cedar', 'fox', 'bear']
+
+# Default configuration
+DEFAULT_CONFIG = {
+    'base_image': 'localhost/emacs-gui:latest',
+    'pass_path_anthropic': 'api/llm/anthropic',
+    'pass_path_openai': 'api/llm/openai',
+}
+
+
+def load_config(global_config_dir: Path | None = None) -> dict:
+    """Load configuration from TOML files.
+
+    Config is loaded in order (later overrides earlier):
+    1. Default config
+    2. Global config: ~/.config/yolo/config.toml
+    3. Project config: .yolo.toml in current directory
+    """
+    config = DEFAULT_CONFIG.copy()
+
+    if global_config_dir is None:
+        global_config_dir = Path.home() / '.config' / 'yolo'
+
+    # Load global config
+    global_config_file = global_config_dir / 'config.toml'
+    if global_config_file.exists():
+        with open(global_config_file, 'rb') as f:
+            global_cfg = tomllib.load(f)
+            config.update(global_cfg)
+
+    # Load project config
+    project_config_file = Path.cwd() / '.yolo.toml'
+    if project_config_file.exists():
+        with open(project_config_file, 'rb') as f:
+            project_cfg = tomllib.load(f)
+            config.update(project_cfg)
+
+    return config
+
 
 # Templates
 DEVCONTAINER_JSON_TEMPLATE = '''{
@@ -47,7 +86,7 @@ DEVCONTAINER_JSON_TEMPLATE = '''{
     }
 }'''
 
-DOCKERFILE_TEMPLATE = '''FROM localhost/emacs-gui:latest
+DOCKERFILE_TEMPLATE = '''FROM BASE_IMAGE
 
 USER root
 RUN apk add --no-cache nodejs npm
@@ -127,13 +166,16 @@ def generate_random_name() -> str:
     return f'{adj}-{noun}'
 
 
-def scaffold_devcontainer(project_name: str, target_dir: Path | None = None) -> bool:
+def scaffold_devcontainer(project_name: str, target_dir: Path | None = None,
+                          config: dict | None = None) -> bool:
     """Create .devcontainer directory with templates.
 
     Returns True if created, False if already exists.
     """
     if target_dir is None:
         target_dir = Path.cwd()
+    if config is None:
+        config = DEFAULT_CONFIG
 
     devcontainer_dir = target_dir / '.devcontainer'
 
@@ -147,24 +189,28 @@ def scaffold_devcontainer(project_name: str, target_dir: Path | None = None) -> 
     json_content = DEVCONTAINER_JSON_TEMPLATE.replace('PROJECT_NAME', project_name)
     (devcontainer_dir / 'devcontainer.json').write_text(json_content)
 
-    # Write Dockerfile
-    (devcontainer_dir / 'Dockerfile').write_text(DOCKERFILE_TEMPLATE)
+    # Write Dockerfile with substituted base image
+    dockerfile_content = DOCKERFILE_TEMPLATE.replace('BASE_IMAGE', config['base_image'])
+    (devcontainer_dir / 'Dockerfile').write_text(dockerfile_content)
 
     return True
 
 
-def get_secrets() -> dict[str, str]:
+def get_secrets(config: dict | None = None) -> dict[str, str]:
     """Get API secrets from pass or environment variables."""
+    if config is None:
+        config = DEFAULT_CONFIG
+
     secrets = {}
 
     # Check if pass is available
     pass_available = shutil.which('pass') is not None
 
     if pass_available:
-        # Try to get secrets from pass
+        # Try to get secrets from pass using configured paths
         for key, pass_path in [
-            ('ANTHROPIC_API_KEY', 'api/llm/anthropic'),
-            ('OPENAI_API_KEY', 'api/llm/openai')
+            ('ANTHROPIC_API_KEY', config['pass_path_anthropic']),
+            ('OPENAI_API_KEY', config['pass_path_openai'])
         ]:
             try:
                 result = subprocess.run(
@@ -289,11 +335,14 @@ def run_default_mode(args: argparse.Namespace) -> None:
     os.chdir(git_root)
     project_name = git_root.name
 
+    # Load config
+    config = load_config()
+
     # Scaffold .devcontainer if missing
-    scaffold_devcontainer(project_name)
+    scaffold_devcontainer(project_name, config=config)
 
     # Set up secrets in environment
-    secrets = get_secrets()
+    secrets = get_secrets(config)
     os.environ.update(secrets)
 
     # Start devcontainer only if not already running (or --new forces restart)
@@ -305,7 +354,8 @@ def run_default_mode(args: argparse.Namespace) -> None:
     devcontainer_exec_tmux(git_root)
 
 
-def get_or_create_worktree(git_root: Path, worktree_name: str, worktree_path: Path) -> Path:
+def get_or_create_worktree(git_root: Path, worktree_name: str, worktree_path: Path,
+                           config: dict | None = None) -> Path:
     """Get existing worktree or create a new one.
 
     Returns the worktree path. If the worktree already exists, just returns
@@ -335,7 +385,7 @@ def get_or_create_worktree(git_root: Path, worktree_name: str, worktree_path: Pa
     else:
         # Scaffold new .devcontainer
         container_name = get_container_name(str(git_root), worktree_name)
-        scaffold_devcontainer(container_name, worktree_path)
+        scaffold_devcontainer(container_name, worktree_path, config=config)
 
     # Add mount for main repo's .git directory so worktree git operations work
     main_git_dir = git_root / '.git'
@@ -358,11 +408,14 @@ def run_tree_mode(args: argparse.Namespace) -> None:
     # Compute paths
     worktree_path = get_worktree_path(str(git_root), worktree_name)
 
+    # Load config
+    config = load_config()
+
     # Get or create the worktree
-    worktree_path = get_or_create_worktree(git_root, worktree_name, worktree_path)
+    worktree_path = get_or_create_worktree(git_root, worktree_name, worktree_path, config=config)
 
     # Set up secrets in environment
-    secrets = get_secrets()
+    secrets = get_secrets(config)
     os.environ.update(secrets)
 
     # Start devcontainer only if not already running (or --new forces restart)
@@ -381,6 +434,9 @@ def run_create_mode(args: argparse.Namespace) -> None:
     project_name = args.create
     project_path = Path.cwd() / project_name
 
+    # Load config
+    config = load_config()
+
     # Create project directory
     project_path.mkdir()
 
@@ -390,12 +446,12 @@ def run_create_mode(args: argparse.Namespace) -> None:
         sys.exit('Error: Failed to initialize git repository')
 
     # Scaffold .devcontainer
-    scaffold_devcontainer(project_name, project_path)
+    scaffold_devcontainer(project_name, project_path, config=config)
 
     print(f'Created project: {project_path}')
 
     # Set up secrets in environment
-    secrets = get_secrets()
+    secrets = get_secrets(config)
     os.environ.update(secrets)
 
     # Start devcontainer
