@@ -140,6 +140,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='List running containers and worktrees for current project'
     )
 
+    parser.add_argument(
+        '--all', '-a',
+        action='store_true',
+        help='With --list: show all running devcontainers globally'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -430,12 +436,87 @@ def find_project_workspaces(git_root: Path) -> list[tuple[Path, str]]:
     return workspaces
 
 
+def get_container_runtime() -> str | None:
+    """Detect available container runtime (docker or podman)."""
+    if shutil.which('docker'):
+        return 'docker'
+    if shutil.which('podman'):
+        return 'podman'
+    return None
+
+
+def list_all_devcontainers() -> list[tuple[str, str, str]]:
+    """List all running devcontainers globally.
+
+    Returns list of tuples: (container_name, workspace_folder, status)
+    """
+    runtime = get_container_runtime()
+    if runtime is None:
+        return []
+
+    # Query containers with devcontainer label
+    result = subprocess.run(
+        [runtime, 'ps', '-a',
+         '--filter', 'label=devcontainer.local_folder',
+         '--format', '{{.Names}}\t{{.Label "devcontainer.local_folder"}}\t{{.State}}'],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        return []
+
+    containers = []
+    for line in result.stdout.strip().split('\n'):
+        if not line:
+            continue
+        parts = line.split('\t')
+        if len(parts) >= 3:
+            name, folder, state = parts[0], parts[1], parts[2]
+            containers.append((name, folder, state))
+
+    return containers
+
+
+def run_list_global_mode() -> None:
+    """Run --list --all mode: show all running devcontainers globally."""
+    runtime = get_container_runtime()
+    if runtime is None:
+        sys.exit('Error: No container runtime found (docker or podman required)')
+
+    containers = list_all_devcontainers()
+
+    print('Running devcontainers:')
+    print()
+
+    running_containers = [(n, f, s) for n, f, s in containers if s == 'running']
+
+    if not running_containers:
+        print('  (none)')
+    else:
+        for name, folder, _ in running_containers:
+            print(f'  {name:<24} {folder}')
+
+    # Also show stopped containers
+    stopped_containers = [(n, f, s) for n, f, s in containers if s != 'running']
+    if stopped_containers:
+        print()
+        print('Stopped devcontainers:')
+        print()
+        for name, folder, state in stopped_containers:
+            print(f'  {name:<24} {folder}  ({state})')
+
+
 def run_list_mode(args: argparse.Namespace) -> None:
     """Run --list mode: show containers and worktrees for current project."""
+    if args.all:
+        run_list_global_mode()
+        return
+
     git_root = find_git_root()
 
     if git_root is None:
-        sys.exit('Error: Not in a git repository.')
+        sys.exit('Error: Not in a git repository. Use --list --all to see all containers.')
 
     project_name = git_root.name
 

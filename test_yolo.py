@@ -543,6 +543,21 @@ class TestListMode(unittest.TestCase):
         args = yolo.parse_args([])
         self.assertFalse(args.list)
 
+    def test_all_flag(self):
+        """--all should set all to True."""
+        args = yolo.parse_args(['--list', '--all'])
+        self.assertTrue(args.all)
+
+    def test_all_short_flag(self):
+        """-a should set all to True."""
+        args = yolo.parse_args(['--list', '-a'])
+        self.assertTrue(args.all)
+
+    def test_all_default_false(self):
+        """--all should default to False."""
+        args = yolo.parse_args(['--list'])
+        self.assertFalse(args.all)
+
 
 class TestListWorktrees(unittest.TestCase):
     """Test worktree listing functionality."""
@@ -591,6 +606,57 @@ class TestListWorktrees(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], git_root)
         self.assertEqual(result[0][1], 'main')
+
+
+class TestContainerRuntime(unittest.TestCase):
+    """Test container runtime detection."""
+
+    def test_get_container_runtime_finds_docker(self):
+        """Should detect docker if available."""
+        with mock.patch('shutil.which') as mock_which:
+            mock_which.side_effect = lambda x: '/usr/bin/docker' if x == 'docker' else None
+            result = yolo.get_container_runtime()
+            self.assertEqual(result, 'docker')
+
+    def test_get_container_runtime_finds_podman(self):
+        """Should detect podman if docker not available."""
+        with mock.patch('shutil.which') as mock_which:
+            mock_which.side_effect = lambda x: '/usr/bin/podman' if x == 'podman' else None
+            result = yolo.get_container_runtime()
+            self.assertEqual(result, 'podman')
+
+    def test_get_container_runtime_prefers_docker(self):
+        """Should prefer docker over podman."""
+        with mock.patch('shutil.which') as mock_which:
+            mock_which.return_value = '/usr/bin/something'
+            result = yolo.get_container_runtime()
+            self.assertEqual(result, 'docker')
+
+    def test_get_container_runtime_returns_none(self):
+        """Should return None if no runtime available."""
+        with mock.patch('shutil.which', return_value=None):
+            result = yolo.get_container_runtime()
+            self.assertIsNone(result)
+
+
+class TestListAllDevcontainers(unittest.TestCase):
+    """Test global devcontainer listing."""
+
+    def test_list_all_returns_empty_without_runtime(self):
+        """Should return empty list if no container runtime."""
+        with mock.patch('yolo.get_container_runtime', return_value=None):
+            result = yolo.list_all_devcontainers()
+            self.assertEqual(result, [])
+
+    def test_list_all_parses_docker_output(self):
+        """Should parse docker ps output correctly."""
+        mock_output = "mycontainer\t/home/user/project\trunning\n"
+        with mock.patch('yolo.get_container_runtime', return_value='docker'):
+            with mock.patch('subprocess.run') as mock_run:
+                mock_run.return_value = mock.Mock(returncode=0, stdout=mock_output)
+                result = yolo.list_all_devcontainers()
+                self.assertEqual(len(result), 1)
+                self.assertEqual(result[0], ('mycontainer', '/home/user/project', 'running'))
 
 
 if __name__ == '__main__':
