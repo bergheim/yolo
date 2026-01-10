@@ -62,6 +62,16 @@ class TestArgumentParsing(unittest.TestCase):
         self.assertTrue(args.new)
         self.assertEqual(args.tree, 'test')
 
+    def test_sync_flag(self):
+        """--sync should set sync to True."""
+        args = yolo.parse_args(['--sync'])
+        self.assertTrue(args.sync)
+
+    def test_sync_default_false(self):
+        """--sync should default to False."""
+        args = yolo.parse_args([])
+        self.assertFalse(args.sync)
+
 
 class TestGuards(unittest.TestCase):
     """Test guard conditions and validations."""
@@ -401,6 +411,53 @@ class TestWorktreeDevcontainer(unittest.TestCase):
         updated = json.loads(json_file.read_text())
         self.assertIn('mounts', updated)
         self.assertEqual(len(updated['mounts']), 1)
+
+
+class TestSyncDevcontainer(unittest.TestCase):
+    """Test --sync functionality."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.original_cwd = os.getcwd()
+
+    def tearDown(self):
+        os.chdir(self.original_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir)
+
+    def test_sync_overwrites_existing_devcontainer(self):
+        """--sync should regenerate .devcontainer even if it exists."""
+        os.chdir(self.tmpdir)
+
+        # Create existing .devcontainer with old content
+        devcontainer_dir = Path(self.tmpdir) / '.devcontainer'
+        devcontainer_dir.mkdir()
+        (devcontainer_dir / 'devcontainer.json').write_text('{"old": "content"}')
+        (devcontainer_dir / 'Dockerfile').write_text('FROM old/image:v1')
+
+        # Sync with new config
+        config = {'base_image': 'new/image:v2'}
+        yolo.sync_devcontainer('myproject', config=config)
+
+        # Verify new content
+        dockerfile = (devcontainer_dir / 'Dockerfile').read_text()
+        self.assertIn('FROM new/image:v2', dockerfile)
+        self.assertNotIn('old/image', dockerfile)
+
+        json_content = (devcontainer_dir / 'devcontainer.json').read_text()
+        self.assertIn('"name": "myproject"', json_content)
+
+    def test_sync_creates_if_missing(self):
+        """--sync should create .devcontainer if it doesn't exist."""
+        os.chdir(self.tmpdir)
+
+        config = {'base_image': 'test/image:v1'}
+        yolo.sync_devcontainer('newproject', config=config)
+
+        devcontainer_dir = Path(self.tmpdir) / '.devcontainer'
+        self.assertTrue(devcontainer_dir.exists())
+        self.assertTrue((devcontainer_dir / 'Dockerfile').exists())
+        self.assertTrue((devcontainer_dir / 'devcontainer.json').exists())
 
 
 class TestConfigLoading(unittest.TestCase):

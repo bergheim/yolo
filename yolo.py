@@ -128,6 +128,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='Remove existing container before starting'
     )
 
+    parser.add_argument(
+        '--sync',
+        action='store_true',
+        help='Regenerate .devcontainer from template using current config'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -194,6 +200,32 @@ def scaffold_devcontainer(project_name: str, target_dir: Path | None = None,
     (devcontainer_dir / 'Dockerfile').write_text(dockerfile_content)
 
     return True
+
+
+def sync_devcontainer(project_name: str, target_dir: Path | None = None,
+                      config: dict | None = None) -> None:
+    """Regenerate .devcontainer from template, overwriting existing files.
+
+    Unlike scaffold_devcontainer, this always writes the files even if
+    .devcontainer already exists.
+    """
+    if target_dir is None:
+        target_dir = Path.cwd()
+    if config is None:
+        config = DEFAULT_CONFIG
+
+    devcontainer_dir = target_dir / '.devcontainer'
+    devcontainer_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write devcontainer.json with substituted project name
+    json_content = DEVCONTAINER_JSON_TEMPLATE.replace('PROJECT_NAME', project_name)
+    (devcontainer_dir / 'devcontainer.json').write_text(json_content)
+
+    # Write Dockerfile with substituted base image
+    dockerfile_content = DOCKERFILE_TEMPLATE.replace('BASE_IMAGE', config['base_image'])
+    (devcontainer_dir / 'Dockerfile').write_text(dockerfile_content)
+
+    print(f'Synced .devcontainer/ with current config')
 
 
 def get_secrets(config: dict | None = None) -> dict[str, str]:
@@ -462,12 +494,34 @@ def run_create_mode(args: argparse.Namespace) -> None:
     devcontainer_exec_tmux(project_path)
 
 
+def run_sync_mode(args: argparse.Namespace) -> None:
+    """Run --sync mode: regenerate .devcontainer from template."""
+    git_root = find_git_root()
+
+    if git_root is None:
+        sys.exit('Error: Not in a git repository.')
+
+    os.chdir(git_root)
+    project_name = git_root.name
+
+    # Load config
+    config = load_config()
+
+    # Sync .devcontainer
+    sync_devcontainer(project_name, config=config)
+
+
 def main(argv: list[str] | None = None) -> None:
     """Main entry point."""
     if argv is None:
         argv = sys.argv[1:]
 
     args = parse_args(argv)
+
+    # Sync mode doesn't need tmux guard (no container attachment)
+    if args.sync:
+        run_sync_mode(args)
+        return
 
     # Check guards
     check_tmux_guard()
