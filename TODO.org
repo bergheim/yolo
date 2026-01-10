@@ -93,6 +93,10 @@
 *** TODO List worktrees for current project
 *** TODO Format output nicely
 
+** --sync Flag
+*** DONE Regenerate .devcontainer from template
+*** DONE Use current config values
+
 ** --attach Flag
 *** TODO Explicit attach to running container
 *** TODO Error if container not running
