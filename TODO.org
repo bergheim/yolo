@@ -89,9 +89,9 @@
 *** TODO Determine container name from current directory
 
 ** --list Flag
-*** TODO List running devcontainers
-*** TODO List worktrees for current project
-*** TODO Format output nicely
+*** DONE List running devcontainers
+*** DONE List worktrees for current project
+*** DONE Format output nicely
 
 ** --sync Flag
 *** DONE Regenerate .devcontainer from template

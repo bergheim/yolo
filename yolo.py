@@ -134,6 +134,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='Regenerate .devcontainer from template using current config'
     )
 
+    parser.add_argument(
+        '--list',
+        action='store_true',
+        help='List running containers and worktrees for current project'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -327,7 +333,8 @@ def is_container_running(workspace_dir: Path) -> bool:
     result = subprocess.run(
         ['devcontainer', 'exec', '--workspace-folder', str(workspace_dir),
          'true'],
-        capture_output=True
+        capture_output=True,
+        cwd=workspace_dir
     )
     return result.returncode == 0
 
@@ -342,7 +349,7 @@ def devcontainer_up(workspace_dir: Path, remove_existing: bool = False) -> bool:
     if remove_existing:
         cmd.append('--remove-existing-container')
 
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, cwd=workspace_dir)
     return result.returncode == 0
 
 
@@ -354,7 +361,117 @@ def devcontainer_exec_tmux(workspace_dir: Path) -> None:
         'sh', '-c', 'tmux attach-session -t dev || tmux new-session -s dev'
     ]
 
-    subprocess.run(cmd)
+    subprocess.run(cmd, cwd=workspace_dir)
+
+
+def list_worktrees(git_root: Path) -> list[tuple[Path, str, str]]:
+    """List git worktrees for a repository.
+
+    Returns list of tuples: (path, commit, branch)
+    """
+    result = subprocess.run(
+        ['git', 'worktree', 'list', '--porcelain'],
+        cwd=git_root,
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        return []
+
+    worktrees = []
+    current_worktree = {}
+
+    for line in result.stdout.strip().split('\n'):
+        if not line:
+            if current_worktree:
+                worktrees.append((
+                    Path(current_worktree.get('worktree', '')),
+                    current_worktree.get('HEAD', '')[:7],
+                    current_worktree.get('branch', '').replace('refs/heads/', '')
+                ))
+                current_worktree = {}
+            continue
+
+        if line.startswith('worktree '):
+            current_worktree['worktree'] = line[9:]
+        elif line.startswith('HEAD '):
+            current_worktree['HEAD'] = line[5:]
+        elif line.startswith('branch '):
+            current_worktree['branch'] = line[7:]
+
+    # Don't forget last worktree
+    if current_worktree:
+        worktrees.append((
+            Path(current_worktree.get('worktree', '')),
+            current_worktree.get('HEAD', '')[:7],
+            current_worktree.get('branch', '').replace('refs/heads/', '')
+        ))
+
+    return worktrees
+
+
+def find_project_workspaces(git_root: Path) -> list[tuple[Path, str]]:
+    """Find all workspace directories for a project.
+
+    Returns list of tuples: (path, type) where type is 'main' or worktree name.
+    """
+    project_name = git_root.name
+    workspaces = [(git_root, 'main')]
+
+    # Check for worktrees directory
+    worktrees_dir = git_root.parent / f'{project_name}-worktrees'
+    if worktrees_dir.exists():
+        worktrees = list_worktrees(git_root)
+        for wt_path, _, branch in worktrees:
+            if wt_path != git_root:
+                workspaces.append((wt_path, branch or wt_path.name))
+
+    return workspaces
+
+
+def run_list_mode(args: argparse.Namespace) -> None:
+    """Run --list mode: show containers and worktrees for current project."""
+    git_root = find_git_root()
+
+    if git_root is None:
+        sys.exit('Error: Not in a git repository.')
+
+    project_name = git_root.name
+
+    print(f'Project: {project_name}')
+    print()
+
+    # Find all workspaces
+    workspaces = find_project_workspaces(git_root)
+
+    # Check container status for each
+    print('Containers:')
+    any_running = False
+    for ws_path, ws_type in workspaces:
+        devcontainer_dir = ws_path / '.devcontainer'
+        if devcontainer_dir.exists():
+            running = is_container_running(ws_path)
+            status = 'running' if running else 'stopped'
+            status_marker = '*' if running else ' '
+            print(f'  {status_marker} {ws_path.name:<20} {status:<10} ({ws_type})')
+            if running:
+                any_running = True
+
+    if not any_running:
+        print('  (no containers running)')
+    print()
+
+    # List worktrees
+    worktrees = list_worktrees(git_root)
+    if len(worktrees) > 1:  # More than just main repo
+        print('Worktrees:')
+        for wt_path, commit, branch in worktrees:
+            if wt_path == git_root:
+                continue  # Skip main repo
+            print(f'    {wt_path.name:<20} {branch:<15} [{commit}]')
+    else:
+        print('Worktrees: (none)')
 
 
 def run_default_mode(args: argparse.Namespace) -> None:
@@ -528,9 +645,13 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parse_args(argv)
 
-    # Sync mode doesn't need tmux guard (no container attachment)
+    # These modes don't need tmux guard (no container attachment)
     if args.sync:
         run_sync_mode(args)
+        return
+
+    if args.list:
+        run_list_mode(args)
         return
 
     # Check guards

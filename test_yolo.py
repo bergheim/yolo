@@ -530,5 +530,68 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(config['pass_path_anthropic'], 'custom/path')
 
 
+class TestListMode(unittest.TestCase):
+    """Test --list functionality."""
+
+    def test_list_flag(self):
+        """--list should set list to True."""
+        args = yolo.parse_args(['--list'])
+        self.assertTrue(args.list)
+
+    def test_list_default_false(self):
+        """--list should default to False."""
+        args = yolo.parse_args([])
+        self.assertFalse(args.list)
+
+
+class TestListWorktrees(unittest.TestCase):
+    """Test worktree listing functionality."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.original_cwd = os.getcwd()
+
+    def tearDown(self):
+        os.chdir(self.original_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir)
+
+    def test_list_worktrees_empty_on_non_git(self):
+        """Should return empty list for non-git directory."""
+        os.chdir(self.tmpdir)
+        result = yolo.list_worktrees(Path(self.tmpdir))
+        self.assertEqual(result, [])
+
+    def test_list_worktrees_returns_main_repo(self):
+        """Should return main repo as first worktree."""
+        os.chdir(self.tmpdir)
+        import subprocess
+        subprocess.run(['git', 'init'], cwd=self.tmpdir, capture_output=True)
+        # Create an initial commit so git worktree list works
+        subprocess.run(['git', 'config', 'user.email', 'test@test.com'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'config', 'user.name', 'Test'], cwd=self.tmpdir, capture_output=True)
+        Path(self.tmpdir, 'README').write_text('test')
+        subprocess.run(['git', 'add', '.'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'commit', '-m', 'Initial'], cwd=self.tmpdir, capture_output=True)
+
+        result = yolo.list_worktrees(Path(self.tmpdir))
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][0], Path(self.tmpdir))
+
+    def test_find_project_workspaces_includes_main(self):
+        """Should always include main repo in workspaces."""
+        os.chdir(self.tmpdir)
+        import subprocess
+        subprocess.run(['git', 'init'], cwd=self.tmpdir, capture_output=True)
+
+        git_root = Path(self.tmpdir)
+        result = yolo.find_project_workspaces(git_root)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][0], git_root)
+        self.assertEqual(result[0][1], 'main')
+
+
 if __name__ == '__main__':
     unittest.main()
