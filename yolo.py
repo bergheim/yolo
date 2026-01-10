@@ -496,8 +496,8 @@ def run_create_mode(args: argparse.Namespace) -> None:
     secrets = get_secrets(config)
     os.environ.update(secrets)
 
-    # Start devcontainer
-    if not devcontainer_up(project_path, remove_existing=args.new):
+    # Start devcontainer (always remove existing for fresh project)
+    if not devcontainer_up(project_path, remove_existing=True):
         sys.exit('Error: Failed to start devcontainer')
 
     # Attach to tmux
