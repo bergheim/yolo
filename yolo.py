@@ -28,6 +28,21 @@ DEFAULT_CONFIG = {
     'pass_path_openai': 'api/llm/openai',
 }
 
+# Global verbose flag
+VERBOSE = False
+
+
+def verbose_print(msg: str) -> None:
+    """Print message if verbose mode is enabled."""
+    if VERBOSE:
+        print(f'[verbose] {msg}', file=sys.stderr)
+
+
+def verbose_cmd(cmd: list[str]) -> None:
+    """Print command if verbose mode is enabled."""
+    if VERBOSE:
+        print(f'[verbose] $ {" ".join(cmd)}', file=sys.stderr)
+
 
 def load_config(global_config_dir: Path | None = None) -> dict:
     """Load configuration from TOML files.
@@ -176,6 +191,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         dest='from_branch',
         metavar='BRANCH',
         help='With --tree: create worktree from specified branch'
+    )
+
+    parser.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Print commands being executed'
     )
 
     return parser.parse_args(argv)
@@ -368,12 +389,9 @@ def add_worktree_git_mount(devcontainer_json_path: Path, main_git_dir: Path) -> 
 
 def is_container_running(workspace_dir: Path) -> bool:
     """Check if devcontainer for workspace is already running."""
-    result = subprocess.run(
-        ['devcontainer', 'exec', '--workspace-folder', str(workspace_dir),
-         'true'],
-        capture_output=True,
-        cwd=workspace_dir
-    )
+    cmd = ['devcontainer', 'exec', '--workspace-folder', str(workspace_dir), 'true']
+    verbose_cmd(cmd)
+    result = subprocess.run(cmd, capture_output=True, cwd=workspace_dir)
     return result.returncode == 0
 
 
@@ -387,6 +405,7 @@ def devcontainer_up(workspace_dir: Path, remove_existing: bool = False) -> bool:
     if remove_existing:
         cmd.append('--remove-existing-container')
 
+    verbose_cmd(cmd)
     result = subprocess.run(cmd, cwd=workspace_dir)
     return result.returncode == 0
 
@@ -399,6 +418,7 @@ def devcontainer_exec_tmux(workspace_dir: Path) -> None:
         'sh', '-c', 'tmux attach-session -t dev || tmux new-session -s dev'
     ]
 
+    verbose_cmd(cmd)
     subprocess.run(cmd, cwd=workspace_dir)
 
 
@@ -578,11 +598,9 @@ def stop_container(workspace_dir: Path) -> bool:
         print(f'No container found for {workspace_dir}', file=sys.stderr)
         return False
 
-    result = subprocess.run(
-        [runtime, 'stop', container_name],
-        capture_output=True,
-        text=True
-    )
+    cmd = [runtime, 'stop', container_name]
+    verbose_cmd(cmd)
+    result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode == 0:
         print(f'Stopped: {container_name}')
@@ -671,22 +689,17 @@ def remove_container(container_name: str) -> bool:
     if runtime is None:
         return False
 
-    result = subprocess.run(
-        [runtime, 'rm', container_name],
-        capture_output=True,
-        text=True
-    )
+    cmd = [runtime, 'rm', container_name]
+    verbose_cmd(cmd)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     return result.returncode == 0
 
 
 def remove_worktree(git_root: Path, worktree_path: Path) -> bool:
     """Remove a git worktree."""
-    result = subprocess.run(
-        ['git', 'worktree', 'remove', '--force', str(worktree_path)],
-        cwd=git_root,
-        capture_output=True,
-        text=True
-    )
+    cmd = ['git', 'worktree', 'remove', '--force', str(worktree_path)]
+    verbose_cmd(cmd)
+    result = subprocess.run(cmd, cwd=git_root, capture_output=True, text=True)
     return result.returncode == 0
 
 
@@ -872,6 +885,7 @@ def get_or_create_worktree(git_root: Path, worktree_name: str, worktree_path: Pa
     if from_branch:
         cmd.append(from_branch)
 
+    verbose_cmd(cmd)
     result = subprocess.run(cmd, cwd=git_root)
     if result.returncode != 0:
         sys.exit('Error: Failed to create git worktree')
@@ -952,7 +966,9 @@ def run_create_mode(args: argparse.Namespace) -> None:
     project_path.mkdir()
 
     # Initialize git repo
-    result = subprocess.run(['git', 'init'], cwd=project_path)
+    cmd = ['git', 'init']
+    verbose_cmd(cmd)
+    result = subprocess.run(cmd, cwd=project_path)
     if result.returncode != 0:
         sys.exit('Error: Failed to initialize git repository')
 
@@ -960,11 +976,13 @@ def run_create_mode(args: argparse.Namespace) -> None:
     scaffold_devcontainer(project_name, project_path, config=config)
 
     # Initial commit with .devcontainer
-    subprocess.run(['git', 'add', '.devcontainer'], cwd=project_path)
-    subprocess.run(
-        ['git', 'commit', '-m', 'Initial commit with devcontainer setup'],
-        cwd=project_path
-    )
+    cmd = ['git', 'add', '.devcontainer']
+    verbose_cmd(cmd)
+    subprocess.run(cmd, cwd=project_path)
+
+    cmd = ['git', 'commit', '-m', 'Initial commit with devcontainer setup']
+    verbose_cmd(cmd)
+    subprocess.run(cmd, cwd=project_path)
 
     print(f'Created project: {project_path}')
 
@@ -1006,10 +1024,16 @@ def run_sync_mode(args: argparse.Namespace) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     """Main entry point."""
+    global VERBOSE
+
     if argv is None:
         argv = sys.argv[1:]
 
     args = parse_args(argv)
+
+    # Set verbose mode
+    if args.verbose:
+        VERBOSE = True
 
     # These modes don't need tmux guard (no container attachment)
     if args.sync:

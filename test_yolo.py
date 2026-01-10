@@ -889,5 +889,24 @@ class TestBranchExists(unittest.TestCase):
         self.assertFalse(result)
 
 
+class TestVerboseMode(unittest.TestCase):
+    """Test --verbose functionality."""
+
+    def test_verbose_flag(self):
+        """--verbose should set verbose to True."""
+        args = yolo.parse_args(['--verbose'])
+        self.assertTrue(args.verbose)
+
+    def test_verbose_short_flag(self):
+        """-v should set verbose to True."""
+        args = yolo.parse_args(['-v'])
+        self.assertTrue(args.verbose)
+
+    def test_verbose_default_false(self):
+        """--verbose should default to False."""
+        args = yolo.parse_args([])
+        self.assertFalse(args.verbose)
+
+
 if __name__ == '__main__':
     unittest.main()

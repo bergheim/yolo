@@ -106,9 +106,9 @@
 *** DONE Print container name/status
 
 ** --verbose Flag
-*** TODO Add verbose logging throughout
-*** TODO Print devcontainer commands being run
-*** TODO Print git commands being run
+*** DONE Add verbose logging throughout
+*** DONE Print devcontainer commands being run
+*** DONE Print git commands being run
 
 ** --prune Flag
 *** DONE Find stopped containers for project
