@@ -295,19 +295,15 @@ def run_default_mode(args: argparse.Namespace) -> None:
     devcontainer_exec_tmux(git_root)
 
 
-def run_tree_mode(args: argparse.Namespace) -> None:
-    """Run --tree mode: create worktree and start devcontainer."""
-    git_root = validate_tree_mode()
+def get_or_create_worktree(git_root: Path, worktree_name: str, worktree_path: Path) -> Path:
+    """Get existing worktree or create a new one.
 
-    # Generate name if not provided
-    worktree_name = args.tree if args.tree else generate_random_name()
-
-    # Compute paths
-    worktree_path = get_worktree_path(str(git_root), worktree_name)
-
-    # Check if worktree already exists
+    Returns the worktree path. If the worktree already exists, just returns
+    the path. If it doesn't exist, creates the worktree with devcontainer.
+    """
     if worktree_path.exists():
-        sys.exit(f'Error: Directory already exists: {worktree_path}')
+        print(f'Using existing worktree: {worktree_path}')
+        return worktree_path
 
     # Create worktrees directory if needed
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
@@ -328,7 +324,6 @@ def run_tree_mode(args: argparse.Namespace) -> None:
         shutil.copytree(src_devcontainer, dst_devcontainer)
     else:
         # Scaffold new .devcontainer
-        project_name = git_root.name
         container_name = get_container_name(str(git_root), worktree_name)
         scaffold_devcontainer(container_name, worktree_path)
 
@@ -339,6 +334,22 @@ def run_tree_mode(args: argparse.Namespace) -> None:
 
     print(f'Created worktree: {worktree_path}')
     print(f'Branch: {worktree_name}')
+
+    return worktree_path
+
+
+def run_tree_mode(args: argparse.Namespace) -> None:
+    """Run --tree mode: create worktree and start devcontainer."""
+    git_root = validate_tree_mode()
+
+    # Generate name if not provided
+    worktree_name = args.tree if args.tree else generate_random_name()
+
+    # Compute paths
+    worktree_path = get_worktree_path(str(git_root), worktree_name)
+
+    # Get or create the worktree
+    worktree_path = get_or_create_worktree(git_root, worktree_name, worktree_path)
 
     # Set up secrets in environment
     secrets = get_secrets()

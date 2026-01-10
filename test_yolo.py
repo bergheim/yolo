@@ -311,6 +311,28 @@ class TestModeValidation(unittest.TestCase):
         self.assertIn('exists', str(cm.exception.code).lower())
 
 
+class TestWorktreeExists(unittest.TestCase):
+    """Test behavior when worktree already exists."""
+
+    def test_existing_worktree_returns_path(self):
+        """Should return existing worktree path instead of erroring."""
+        # If worktree exists, get_or_create_worktree should return the path
+        # without trying to create it
+        with tempfile.TemporaryDirectory() as tmpdir:
+            worktree_path = Path(tmpdir) / 'existing-worktree'
+            worktree_path.mkdir()
+            (worktree_path / '.devcontainer').mkdir()
+
+            result = yolo.get_or_create_worktree(
+                git_root=Path(tmpdir),
+                worktree_name='existing-worktree',
+                worktree_path=worktree_path
+            )
+
+            self.assertEqual(result, worktree_path)
+            self.assertTrue(result.exists())
+
+
 class TestWorktreeDevcontainer(unittest.TestCase):
     """Test worktree-specific devcontainer configuration."""
 
