@@ -102,8 +102,8 @@
 *** DONE Error if container not running
 
 ** --detach / -d Flag
-*** TODO Start container without attaching
-*** TODO Print container name/status
+*** DONE Start container without attaching
+*** DONE Print container name/status
 
 ** --verbose Flag
 *** TODO Add verbose logging throughout

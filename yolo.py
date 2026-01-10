@@ -165,6 +165,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='Attach to running container (error if not running)'
     )
 
+    parser.add_argument(
+        '--detach', '-d',
+        action='store_true',
+        help='Start container without attaching'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -820,6 +826,10 @@ def run_default_mode(args: argparse.Namespace) -> None:
         if not devcontainer_up(git_root, remove_existing=args.new):
             sys.exit('Error: Failed to start devcontainer')
 
+    if args.detach:
+        print(f'Container started: {project_name}')
+        return
+
     # Attach to tmux
     devcontainer_exec_tmux(git_root)
 
@@ -893,6 +903,10 @@ def run_tree_mode(args: argparse.Namespace) -> None:
         if not devcontainer_up(worktree_path, remove_existing=args.new):
             sys.exit('Error: Failed to start devcontainer')
 
+    if args.detach:
+        print(f'Container started: {worktree_path.name}')
+        return
+
     # Attach to tmux
     devcontainer_exec_tmux(worktree_path)
 
@@ -937,6 +951,10 @@ def run_create_mode(args: argparse.Namespace) -> None:
     # Start devcontainer (always remove existing for fresh project)
     if not devcontainer_up(project_path, remove_existing=True):
         sys.exit('Error: Failed to start devcontainer')
+
+    if args.detach:
+        print(f'Container started: {project_name}')
+        return
 
     # Attach to tmux
     devcontainer_exec_tmux(project_path)
@@ -983,8 +1001,9 @@ def main(argv: list[str] | None = None) -> None:
         run_prune_mode(args)
         return
 
-    # Check guards
-    check_tmux_guard()
+    # Check guards (skip tmux guard if detaching)
+    if not args.detach:
+        check_tmux_guard()
 
     # Dispatch to appropriate mode
     if args.attach:

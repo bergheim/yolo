@@ -813,5 +813,30 @@ class TestAttachMode(unittest.TestCase):
         self.assertFalse(args.attach)
 
 
+class TestDetachMode(unittest.TestCase):
+    """Test --detach functionality."""
+
+    def test_detach_flag(self):
+        """--detach should set detach to True."""
+        args = yolo.parse_args(['--detach'])
+        self.assertTrue(args.detach)
+
+    def test_detach_short_flag(self):
+        """-d should set detach to True."""
+        args = yolo.parse_args(['-d'])
+        self.assertTrue(args.detach)
+
+    def test_detach_default_false(self):
+        """--detach should default to False."""
+        args = yolo.parse_args([])
+        self.assertFalse(args.detach)
+
+    def test_detach_with_tree(self):
+        """--detach can combine with --tree."""
+        args = yolo.parse_args(['--detach', '--tree', 'test'])
+        self.assertTrue(args.detach)
+        self.assertEqual(args.tree, 'test')
+
+
 if __name__ == '__main__':
     unittest.main()
