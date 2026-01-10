@@ -98,8 +98,8 @@
 *** DONE Use current config values
 
 ** --attach Flag
-*** TODO Explicit attach to running container
-*** TODO Error if container not running
+*** DONE Explicit attach to running container
+*** DONE Error if container not running
 
 ** --detach / -d Flag
 *** TODO Start container without attaching

@@ -799,5 +799,19 @@ class TestRemoveWorktree(unittest.TestCase):
             self.assertIn('remove', args)
 
 
+class TestAttachMode(unittest.TestCase):
+    """Test --attach functionality."""
+
+    def test_attach_flag(self):
+        """--attach should set attach to True."""
+        args = yolo.parse_args(['--attach'])
+        self.assertTrue(args.attach)
+
+    def test_attach_default_false(self):
+        """--attach should default to False."""
+        args = yolo.parse_args([])
+        self.assertFalse(args.attach)
+
+
 if __name__ == '__main__':
     unittest.main()

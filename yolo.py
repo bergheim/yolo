@@ -159,6 +159,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='Clean up stopped containers and stale worktrees for project'
     )
 
+    parser.add_argument(
+        '--attach',
+        action='store_true',
+        help='Attach to running container (error if not running)'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -727,6 +733,20 @@ def run_prune_mode(args: argparse.Namespace) -> None:
             print(f'Failed to remove worktree: {wt_path.name}', file=sys.stderr)
 
 
+def run_attach_mode(args: argparse.Namespace) -> None:
+    """Run --attach mode: attach to running container."""
+    git_root = find_git_root()
+
+    if git_root is None:
+        sys.exit('Error: Not in a git repository.')
+
+    if not is_container_running(git_root):
+        sys.exit('Error: Container is not running. Use yolo to start it.')
+
+    # Attach to tmux
+    devcontainer_exec_tmux(git_root)
+
+
 def run_list_mode(args: argparse.Namespace) -> None:
     """Run --list mode: show containers and worktrees for current project."""
     if args.all:
@@ -967,7 +987,9 @@ def main(argv: list[str] | None = None) -> None:
     check_tmux_guard()
 
     # Dispatch to appropriate mode
-    if args.create:
+    if args.attach:
+        run_attach_mode(args)
+    elif args.create:
         run_create_mode(args)
     elif args.tree is not None:
         run_tree_mode(args)
