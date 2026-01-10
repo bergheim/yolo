@@ -838,5 +838,56 @@ class TestDetachMode(unittest.TestCase):
         self.assertEqual(args.tree, 'test')
 
 
+class TestFromBranch(unittest.TestCase):
+    """Test --from BRANCH functionality."""
+
+    def test_from_flag(self):
+        """--from should set from_branch."""
+        args = yolo.parse_args(['--tree', 'test', '--from', 'main'])
+        self.assertEqual(args.from_branch, 'main')
+
+    def test_from_default_none(self):
+        """--from should default to None."""
+        args = yolo.parse_args(['--tree', 'test'])
+        self.assertIsNone(args.from_branch)
+
+    def test_from_with_tree(self):
+        """--from can combine with --tree."""
+        args = yolo.parse_args(['--tree', 'feature', '--from', 'develop'])
+        self.assertEqual(args.tree, 'feature')
+        self.assertEqual(args.from_branch, 'develop')
+
+
+class TestBranchExists(unittest.TestCase):
+    """Test branch existence checking."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.original_cwd = os.getcwd()
+        # Set up a git repo with a commit
+        import subprocess
+        subprocess.run(['git', 'init'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'config', 'user.email', 'test@test.com'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'config', 'user.name', 'Test'], cwd=self.tmpdir, capture_output=True)
+        Path(self.tmpdir, 'README').write_text('test')
+        subprocess.run(['git', 'add', '.'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'commit', '-m', 'Initial'], cwd=self.tmpdir, capture_output=True)
+
+    def tearDown(self):
+        os.chdir(self.original_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir)
+
+    def test_branch_exists_for_existing_branch(self):
+        """Should return True for existing branch."""
+        result = yolo.branch_exists(Path(self.tmpdir), 'master')
+        self.assertTrue(result)
+
+    def test_branch_exists_for_nonexistent_branch(self):
+        """Should return False for nonexistent branch."""
+        result = yolo.branch_exists(Path(self.tmpdir), 'nonexistent')
+        self.assertFalse(result)
+
+
 if __name__ == '__main__':
     unittest.main()

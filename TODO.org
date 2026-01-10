@@ -117,9 +117,9 @@
 *** DONE Clean up resources
 
 ** --from BRANCH Flag
-*** TODO Accept --from BRANCH with --tree
-*** TODO Create worktree from specified branch
-*** TODO Validate branch exists
+*** DONE Accept --from BRANCH with --tree
+*** DONE Create worktree from specified branch
+*** DONE Validate branch exists
 
 ** Configuration Files
 *** DONE Define config file format (TOML)

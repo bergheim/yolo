@@ -171,6 +171,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='Start container without attaching'
     )
 
+    parser.add_argument(
+        '--from',
+        dest='from_branch',
+        metavar='BRANCH',
+        help='With --tree: create worktree from specified branch'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -834,12 +841,24 @@ def run_default_mode(args: argparse.Namespace) -> None:
     devcontainer_exec_tmux(git_root)
 
 
+def branch_exists(git_root: Path, branch: str) -> bool:
+    """Check if a branch or ref exists in the repository."""
+    result = subprocess.run(
+        ['git', 'rev-parse', '--verify', branch],
+        cwd=git_root,
+        capture_output=True
+    )
+    return result.returncode == 0
+
+
 def get_or_create_worktree(git_root: Path, worktree_name: str, worktree_path: Path,
-                           config: dict | None = None) -> Path:
+                           config: dict | None = None, from_branch: str | None = None) -> Path:
     """Get existing worktree or create a new one.
 
     Returns the worktree path. If the worktree already exists, just returns
     the path. If it doesn't exist, creates the worktree with devcontainer.
+
+    If from_branch is specified, creates the worktree from that branch.
     """
     if worktree_path.exists():
         print(f'Using existing worktree: {worktree_path}')
@@ -849,10 +868,11 @@ def get_or_create_worktree(git_root: Path, worktree_name: str, worktree_path: Pa
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Create git worktree with new branch
-    result = subprocess.run(
-        ['git', 'worktree', 'add', '-b', worktree_name, str(worktree_path)],
-        cwd=git_root
-    )
+    cmd = ['git', 'worktree', 'add', '-b', worktree_name, str(worktree_path)]
+    if from_branch:
+        cmd.append(from_branch)
+
+    result = subprocess.run(cmd, cwd=git_root)
     if result.returncode != 0:
         sys.exit('Error: Failed to create git worktree')
 
@@ -882,6 +902,10 @@ def run_tree_mode(args: argparse.Namespace) -> None:
     """Run --tree mode: create worktree and start devcontainer."""
     git_root = validate_tree_mode()
 
+    # Validate --from branch if specified
+    if args.from_branch and not branch_exists(git_root, args.from_branch):
+        sys.exit(f'Error: Branch does not exist: {args.from_branch}')
+
     # Generate name if not provided
     worktree_name = args.tree if args.tree else generate_random_name()
 
@@ -892,7 +916,10 @@ def run_tree_mode(args: argparse.Namespace) -> None:
     config = load_config()
 
     # Get or create the worktree
-    worktree_path = get_or_create_worktree(git_root, worktree_name, worktree_path, config=config)
+    worktree_path = get_or_create_worktree(
+        git_root, worktree_name, worktree_path,
+        config=config, from_branch=args.from_branch
+    )
 
     # Set up secrets in environment
     secrets = get_secrets(config)
