@@ -583,6 +583,9 @@ def run_stop_mode(args: argparse.Namespace) -> None:
 
         any_stopped = False
         for ws_path, ws_type in worktrees + main:
+            # Skip if directory doesn't exist (stale worktree)
+            if not ws_path.exists():
+                continue
             if is_container_running(ws_path):
                 if stop_container(ws_path):
                     any_stopped = True
