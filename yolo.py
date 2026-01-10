@@ -146,6 +146,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='With --list: show all running devcontainers globally'
     )
 
+    parser.add_argument(
+        '--stop',
+        action='store_true',
+        help='Stop the devcontainer for current project'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -507,6 +513,70 @@ def run_list_global_mode() -> None:
             print(f'  {name:<24} {folder}  ({state})')
 
 
+def get_container_for_workspace(workspace_dir: Path) -> str | None:
+    """Get container name for a workspace directory.
+
+    Returns container name if found, None otherwise.
+    """
+    runtime = get_container_runtime()
+    if runtime is None:
+        return None
+
+    # Query containers with matching workspace folder
+    result = subprocess.run(
+        [runtime, 'ps', '-a',
+         '--filter', f'label=devcontainer.local_folder={workspace_dir}',
+         '--format', '{{.Names}}'],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+
+    return result.stdout.strip().split('\n')[0]
+
+
+def stop_container(workspace_dir: Path) -> bool:
+    """Stop the devcontainer for a workspace.
+
+    Returns True if stopped successfully, False otherwise.
+    """
+    runtime = get_container_runtime()
+    if runtime is None:
+        print('Error: No container runtime found (docker or podman required)', file=sys.stderr)
+        return False
+
+    container_name = get_container_for_workspace(workspace_dir)
+    if container_name is None:
+        print(f'No container found for {workspace_dir}', file=sys.stderr)
+        return False
+
+    result = subprocess.run(
+        [runtime, 'stop', container_name],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode == 0:
+        print(f'Stopped: {container_name}')
+        return True
+    else:
+        print(f'Failed to stop {container_name}: {result.stderr}', file=sys.stderr)
+        return False
+
+
+def run_stop_mode(args: argparse.Namespace) -> None:
+    """Run --stop mode: stop the devcontainer for current project."""
+    git_root = find_git_root()
+
+    if git_root is None:
+        sys.exit('Error: Not in a git repository.')
+
+    if not stop_container(git_root):
+        sys.exit(1)
+
+
 def run_list_mode(args: argparse.Namespace) -> None:
     """Run --list mode: show containers and worktrees for current project."""
     if args.all:
@@ -733,6 +803,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.list:
         run_list_mode(args)
+        return
+
+    if args.stop:
+        run_stop_mode(args)
         return
 
     # Check guards

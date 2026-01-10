@@ -659,5 +659,71 @@ class TestListAllDevcontainers(unittest.TestCase):
                 self.assertEqual(result[0], ('mycontainer', '/home/user/project', 'running'))
 
 
+class TestStopMode(unittest.TestCase):
+    """Test --stop functionality."""
+
+    def test_stop_flag(self):
+        """--stop should set stop to True."""
+        args = yolo.parse_args(['--stop'])
+        self.assertTrue(args.stop)
+
+    def test_stop_default_false(self):
+        """--stop should default to False."""
+        args = yolo.parse_args([])
+        self.assertFalse(args.stop)
+
+
+class TestGetContainerForWorkspace(unittest.TestCase):
+    """Test container lookup by workspace."""
+
+    def test_returns_none_without_runtime(self):
+        """Should return None if no container runtime."""
+        with mock.patch('yolo.get_container_runtime', return_value=None):
+            result = yolo.get_container_for_workspace(Path('/some/path'))
+            self.assertIsNone(result)
+
+    def test_returns_container_name(self):
+        """Should return container name from docker output."""
+        with mock.patch('yolo.get_container_runtime', return_value='docker'):
+            with mock.patch('subprocess.run') as mock_run:
+                mock_run.return_value = mock.Mock(returncode=0, stdout='my-container\n')
+                result = yolo.get_container_for_workspace(Path('/home/user/project'))
+                self.assertEqual(result, 'my-container')
+
+    def test_returns_none_when_no_container(self):
+        """Should return None when no container found."""
+        with mock.patch('yolo.get_container_runtime', return_value='docker'):
+            with mock.patch('subprocess.run') as mock_run:
+                mock_run.return_value = mock.Mock(returncode=0, stdout='')
+                result = yolo.get_container_for_workspace(Path('/home/user/project'))
+                self.assertIsNone(result)
+
+
+class TestStopContainer(unittest.TestCase):
+    """Test container stopping."""
+
+    def test_stop_returns_false_without_runtime(self):
+        """Should return False if no container runtime."""
+        with mock.patch('yolo.get_container_runtime', return_value=None):
+            result = yolo.stop_container(Path('/some/path'))
+            self.assertFalse(result)
+
+    def test_stop_returns_false_when_no_container(self):
+        """Should return False when no container found."""
+        with mock.patch('yolo.get_container_runtime', return_value='docker'):
+            with mock.patch('yolo.get_container_for_workspace', return_value=None):
+                result = yolo.stop_container(Path('/some/path'))
+                self.assertFalse(result)
+
+    def test_stop_returns_true_on_success(self):
+        """Should return True when container stopped successfully."""
+        with mock.patch('yolo.get_container_runtime', return_value='docker'):
+            with mock.patch('yolo.get_container_for_workspace', return_value='my-container'):
+                with mock.patch('subprocess.run') as mock_run:
+                    mock_run.return_value = mock.Mock(returncode=0)
+                    result = yolo.stop_container(Path('/some/path'))
+                    self.assertTrue(result)
+
+
 if __name__ == '__main__':
     unittest.main()

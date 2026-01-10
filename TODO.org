@@ -85,8 +85,8 @@
 
 * Future Enhancements (Not MVP)
 ** --stop Flag
-*** TODO Stop container for current project
-*** TODO Determine container name from current directory
+*** DONE Stop container for current project
+*** DONE Determine container name from current directory
 
 ** --list Flag
 *** DONE List running devcontainers
