@@ -245,6 +245,16 @@ def add_worktree_git_mount(devcontainer_json_path: Path, main_git_dir: Path) -> 
     devcontainer_json_path.write_text(json.dumps(content, indent=4))
 
 
+def is_container_running(workspace_dir: Path) -> bool:
+    """Check if devcontainer for workspace is already running."""
+    result = subprocess.run(
+        ['devcontainer', 'exec', '--workspace-folder', str(workspace_dir),
+         'true'],
+        capture_output=True
+    )
+    return result.returncode == 0
+
+
 def devcontainer_up(workspace_dir: Path, remove_existing: bool = False) -> bool:
     """Start devcontainer with devcontainer up.
 
@@ -287,9 +297,10 @@ def run_default_mode(args: argparse.Namespace) -> None:
     secrets = get_secrets()
     os.environ.update(secrets)
 
-    # Start devcontainer
-    if not devcontainer_up(git_root, remove_existing=args.new):
-        sys.exit('Error: Failed to start devcontainer')
+    # Start devcontainer only if not already running (or --new forces restart)
+    if args.new or not is_container_running(git_root):
+        if not devcontainer_up(git_root, remove_existing=args.new):
+            sys.exit('Error: Failed to start devcontainer')
 
     # Attach to tmux
     devcontainer_exec_tmux(git_root)
@@ -355,9 +366,10 @@ def run_tree_mode(args: argparse.Namespace) -> None:
     secrets = get_secrets()
     os.environ.update(secrets)
 
-    # Start devcontainer in worktree
-    if not devcontainer_up(worktree_path, remove_existing=args.new):
-        sys.exit('Error: Failed to start devcontainer')
+    # Start devcontainer only if not already running (or --new forces restart)
+    if args.new or not is_container_running(worktree_path):
+        if not devcontainer_up(worktree_path, remove_existing=args.new):
+            sys.exit('Error: Failed to start devcontainer')
 
     # Attach to tmux
     devcontainer_exec_tmux(worktree_path)
