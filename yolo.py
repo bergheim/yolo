@@ -44,8 +44,7 @@ DEVCONTAINER_JSON_TEMPLATE = '''{
         "XDG_RUNTIME_DIR": "/tmp/runtime-1000",
         "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
         "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}"
-    },
-    "postStartCommand": "/home/tsb/entrypoint.sh"
+    }
 }'''
 
 DOCKERFILE_TEMPLATE = '''FROM localhost/emacs-gui:latest
