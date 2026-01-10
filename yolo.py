@@ -153,6 +153,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help='Stop the devcontainer for current project'
     )
 
+    parser.add_argument(
+        '--prune',
+        action='store_true',
+        help='Clean up stopped containers and stale worktrees for project'
+    )
+
     return parser.parse_args(argv)
 
 
@@ -597,6 +603,130 @@ def run_stop_mode(args: argparse.Namespace) -> None:
             sys.exit(1)
 
 
+def find_stopped_containers_for_project(git_root: Path) -> list[tuple[str, str]]:
+    """Find stopped containers for a project.
+
+    Returns list of tuples: (container_name, workspace_folder)
+    """
+    runtime = get_container_runtime()
+    if runtime is None:
+        return []
+
+    project_name = git_root.name
+
+    # Get all containers (including stopped) with devcontainer label
+    all_containers = list_all_devcontainers()
+
+    # Filter to stopped containers that match this project
+    stopped = []
+    for name, folder, state in all_containers:
+        if state != 'running':
+            # Check if folder is under this project or its worktrees
+            folder_path = Path(folder)
+            if folder_path == git_root or folder_path.parent.name == f'{project_name}-worktrees':
+                stopped.append((name, folder))
+
+    return stopped
+
+
+def find_stale_worktrees(git_root: Path) -> list[tuple[Path, str]]:
+    """Find worktrees that no longer exist on disk.
+
+    Returns list of tuples: (worktree_path, branch_name)
+    """
+    worktrees = list_worktrees(git_root)
+    stale = []
+
+    for wt_path, _, branch in worktrees:
+        if wt_path == git_root:
+            continue  # Skip main repo
+        if not wt_path.exists():
+            stale.append((wt_path, branch))
+
+    return stale
+
+
+def remove_container(container_name: str) -> bool:
+    """Remove a container."""
+    runtime = get_container_runtime()
+    if runtime is None:
+        return False
+
+    result = subprocess.run(
+        [runtime, 'rm', container_name],
+        capture_output=True,
+        text=True
+    )
+    return result.returncode == 0
+
+
+def remove_worktree(git_root: Path, worktree_path: Path) -> bool:
+    """Remove a git worktree."""
+    result = subprocess.run(
+        ['git', 'worktree', 'remove', '--force', str(worktree_path)],
+        cwd=git_root,
+        capture_output=True,
+        text=True
+    )
+    return result.returncode == 0
+
+
+def run_prune_mode(args: argparse.Namespace) -> None:
+    """Run --prune mode: clean up stopped containers and stale worktrees."""
+    git_root = find_git_root()
+
+    if git_root is None:
+        sys.exit('Error: Not in a git repository.')
+
+    # Find stopped containers
+    stopped_containers = find_stopped_containers_for_project(git_root)
+
+    # Find stale worktrees
+    stale_worktrees = find_stale_worktrees(git_root)
+
+    if not stopped_containers and not stale_worktrees:
+        print('Nothing to prune.')
+        return
+
+    # Show what will be pruned
+    if stopped_containers:
+        print('Stopped containers:')
+        for name, folder in stopped_containers:
+            print(f'  {name:<24} {folder}')
+        print()
+
+    if stale_worktrees:
+        print('Stale worktrees:')
+        for wt_path, branch in stale_worktrees:
+            print(f'  {wt_path.name:<24} ({branch})')
+        print()
+
+    # Prompt for confirmation
+    try:
+        response = input('Remove these? [y/N] ')
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+
+    if response.lower() != 'y':
+        print('Cancelled.')
+        return
+
+    # Remove containers
+    for name, _ in stopped_containers:
+        if remove_container(name):
+            print(f'Removed container: {name}')
+        else:
+            print(f'Failed to remove container: {name}', file=sys.stderr)
+
+    # Remove worktrees
+    for wt_path, _ in stale_worktrees:
+        if remove_worktree(git_root, wt_path):
+            print(f'Removed worktree: {wt_path.name}')
+        else:
+            print(f'Failed to remove worktree: {wt_path.name}', file=sys.stderr)
+
+
 def run_list_mode(args: argparse.Namespace) -> None:
     """Run --list mode: show containers and worktrees for current project."""
     if args.all:
@@ -827,6 +957,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.stop:
         run_stop_mode(args)
+        return
+
+    if args.prune:
+        run_prune_mode(args)
         return
 
     # Check guards

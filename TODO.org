@@ -111,10 +111,10 @@
 *** TODO Print git commands being run
 
 ** --prune Flag
-*** TODO Find stopped containers for project
-*** TODO Find stale/orphaned worktrees
-*** TODO Prompt before deletion
-*** TODO Clean up resources
+*** DONE Find stopped containers for project
+*** DONE Find stale/orphaned worktrees
+*** DONE Prompt before deletion
+*** DONE Clean up resources
 
 ** --from BRANCH Flag
 *** TODO Accept --from BRANCH with --tree

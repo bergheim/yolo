@@ -725,5 +725,79 @@ class TestStopContainer(unittest.TestCase):
                     self.assertTrue(result)
 
 
+class TestPruneMode(unittest.TestCase):
+    """Test --prune functionality."""
+
+    def test_prune_flag(self):
+        """--prune should set prune to True."""
+        args = yolo.parse_args(['--prune'])
+        self.assertTrue(args.prune)
+
+    def test_prune_default_false(self):
+        """--prune should default to False."""
+        args = yolo.parse_args([])
+        self.assertFalse(args.prune)
+
+
+class TestFindStaleWorktrees(unittest.TestCase):
+    """Test stale worktree detection."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.original_cwd = os.getcwd()
+
+    def tearDown(self):
+        os.chdir(self.original_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir)
+
+    def test_find_stale_worktrees_returns_empty_for_fresh_repo(self):
+        """Should return empty list when no stale worktrees."""
+        os.chdir(self.tmpdir)
+        import subprocess
+        subprocess.run(['git', 'init'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'config', 'user.email', 'test@test.com'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'config', 'user.name', 'Test'], cwd=self.tmpdir, capture_output=True)
+        Path(self.tmpdir, 'README').write_text('test')
+        subprocess.run(['git', 'add', '.'], cwd=self.tmpdir, capture_output=True)
+        subprocess.run(['git', 'commit', '-m', 'Initial'], cwd=self.tmpdir, capture_output=True)
+
+        result = yolo.find_stale_worktrees(Path(self.tmpdir))
+        self.assertEqual(result, [])
+
+
+class TestRemoveContainer(unittest.TestCase):
+    """Test container removal."""
+
+    def test_remove_returns_false_without_runtime(self):
+        """Should return False if no container runtime."""
+        with mock.patch('yolo.get_container_runtime', return_value=None):
+            result = yolo.remove_container('my-container')
+            self.assertFalse(result)
+
+    def test_remove_returns_true_on_success(self):
+        """Should return True when container removed successfully."""
+        with mock.patch('yolo.get_container_runtime', return_value='docker'):
+            with mock.patch('subprocess.run') as mock_run:
+                mock_run.return_value = mock.Mock(returncode=0)
+                result = yolo.remove_container('my-container')
+                self.assertTrue(result)
+
+
+class TestRemoveWorktree(unittest.TestCase):
+    """Test worktree removal."""
+
+    def test_remove_worktree_calls_git(self):
+        """Should call git worktree remove."""
+        with mock.patch('subprocess.run') as mock_run:
+            mock_run.return_value = mock.Mock(returncode=0)
+            result = yolo.remove_worktree(Path('/project'), Path('/project-worktrees/foo'))
+            self.assertTrue(result)
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            self.assertIn('worktree', args)
+            self.assertIn('remove', args)
+
+
 if __name__ == '__main__':
     unittest.main()
