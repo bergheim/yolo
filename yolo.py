@@ -489,6 +489,9 @@ def run_create_mode(args: argparse.Namespace) -> None:
 
     print(f'Created project: {project_path}')
 
+    # Change to project directory for devcontainer commands
+    os.chdir(project_path)
+
     # Set up secrets in environment
     secrets = get_secrets(config)
     os.environ.update(secrets)
