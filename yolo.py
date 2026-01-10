@@ -480,6 +480,13 @@ def run_create_mode(args: argparse.Namespace) -> None:
     # Scaffold .devcontainer
     scaffold_devcontainer(project_name, project_path, config=config)
 
+    # Initial commit with .devcontainer
+    subprocess.run(['git', 'add', '.devcontainer'], cwd=project_path)
+    subprocess.run(
+        ['git', 'commit', '-m', 'Initial commit with devcontainer setup'],
+        cwd=project_path
+    )
+
     print(f'Created project: {project_path}')
 
     # Set up secrets in environment
