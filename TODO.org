@@ -118,13 +118,13 @@
 *** TODO Validate branch exists
 
 ** Configuration Files
-*** TODO Define config file format
-*** TODO Load ~/.config/yolo/config if exists
-*** TODO Load .yolo.conf from project root if exists
-*** TODO Override defaults with config values
-*** TODO Support BASE_IMAGE config
-*** TODO Support DEFAULT_SHELL config
-*** TODO Support custom pass paths
+*** DONE Define config file format (TOML)
+*** DONE Load ~/.config/yolo/config.toml if exists
+*** DONE Load .yolo.toml from project root if exists
+*** DONE Override defaults with config values
+*** DONE Support base_image config
+*** TODO Support default_shell config
+*** DONE Support custom pass paths (pass_path_anthropic, pass_path_openai)
 
 * Notes
 ** Container Naming
