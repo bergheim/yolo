@@ -143,7 +143,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         '--all', '-a',
         action='store_true',
-        help='With --list: show all running devcontainers globally'
+        help='With --list: show all devcontainers globally. '
+             'With --stop: stop all containers for project (worktrees + main)'
     )
 
     parser.add_argument(
@@ -573,8 +574,24 @@ def run_stop_mode(args: argparse.Namespace) -> None:
     if git_root is None:
         sys.exit('Error: Not in a git repository.')
 
-    if not stop_container(git_root):
-        sys.exit(1)
+    if args.all:
+        # Stop all containers for this project (worktrees first, then main)
+        workspaces = find_project_workspaces(git_root)
+        # Reverse so worktrees come before main
+        worktrees = [(p, t) for p, t in workspaces if t != 'main']
+        main = [(p, t) for p, t in workspaces if t == 'main']
+
+        any_stopped = False
+        for ws_path, ws_type in worktrees + main:
+            if is_container_running(ws_path):
+                if stop_container(ws_path):
+                    any_stopped = True
+
+        if not any_stopped:
+            print('No running containers found for this project')
+    else:
+        if not stop_container(git_root):
+            sys.exit(1)
 
 
 def run_list_mode(args: argparse.Namespace) -> None:
