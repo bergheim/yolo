@@ -1,0 +1,21 @@
+#+TITLE: yolo
+
+Spin up devcontainers with git worktree support.
+
+** Install
+
+#+begin_src bash
+cp yolo.py ~/.local/bin/yolo && chmod +x ~/.local/bin/yolo
+#+end_src
+
+** Usage
+
+#+begin_src bash
+yolo                      # start devcontainer in current project
+yolo --tree feature-x     # create worktree + devcontainer
+yolo --create newproject  # scaffold new project
+yolo --list               # show containers/worktrees
+yolo --stop               # stop container
+#+end_src
+
+See =CLAUDE.md= for full documentation.
