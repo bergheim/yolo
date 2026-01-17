@@ -109,6 +109,11 @@ yolo -d --tree feature   # create worktree and start
 
 Regenerate `.devcontainer/` from template using current config. Useful for updating existing projects with new base image or settings.
 
+Can be combined with `--new` to sync and rebuild in one command:
+```bash
+yolo --sync --new    # sync config and rebuild container
+```
+
 ### `--list`
 
 Show containers and worktrees for current project:

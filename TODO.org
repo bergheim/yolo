@@ -96,6 +96,7 @@
 ** --sync Flag
 *** DONE Regenerate .devcontainer from template
 *** DONE Use current config values
+*** DONE Combine with --new to sync and rebuild in one command
 
 ** --attach Flag
 *** DONE Explicit attach to running container
@@ -127,7 +128,6 @@
 *** DONE Load .yolo.toml from project root if exists
 *** DONE Override defaults with config values
 *** DONE Support base_image config
-*** TODO Support default_shell config
 *** DONE Support custom pass paths (pass_path_anthropic, pass_path_openai)
 
 * Notes

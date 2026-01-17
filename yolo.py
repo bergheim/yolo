@@ -102,21 +102,24 @@ DEVCONTAINER_JSON_TEMPLATE = """{
     },
     "mounts": [
         "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind",
-        "source=${localEnv:HOME}/.claude,target=/home/tsb/.claude,type=bind",
-        "source=${localEnv:HOME}/.claude.json,target=/home/tsb/.claude.json,type=bind",
-        "source=${localEnv:HOME}/.zshrc,target=/home/tsb/.zshrc,type=bind,readonly",
-        "source=${localEnv:HOME}/.tmux.conf,target=/home/tsb/.tmux.conf,type=bind,readonly",
-        "source=${localEnv:HOME}/.gitconfig,target=/home/tsb/.gitconfig,type=bind,readonly",
-        "source=${localEnv:HOME}/.config/tmux,target=/home/tsb/.config/tmux,type=bind,readonly",
-        "source=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY},target=/tmp/runtime-1000/${localEnv:WAYLAND_DISPLAY},type=bind",
-        "source=${localEnv:HOME}/.config/emacs,target=/home/tsb/.config/emacs,type=bind",
-        "source=${localEnv:HOME}/.cache/emacs,target=/home/tsb/.cache/emacs,type=bind"
+        "source=${localEnv:HOME}/.claude,target=/home/${localEnv:USER}/.claude,type=bind",
+        "source=${localEnv:HOME}/.claude.json,target=/home/${localEnv:USER}/.claude.json,type=bind",
+        "source=${localEnv:HOME}/.zshrc,target=/home/${localEnv:USER}/.zshrc,type=bind,readonly",
+        "source=${localEnv:HOME}/.tmux.conf,target=/home/${localEnv:USER}/.tmux.conf,type=bind,readonly",
+        "source=${localEnv:HOME}/.gitconfig,target=/home/${localEnv:USER}/.gitconfig,type=bind,readonly",
+        "source=${localEnv:HOME}/.config/tmux,target=/home/${localEnv:USER}/.config/tmux,type=bind,readonly",
+        "source=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY},target=/tmp/container-runtime/${localEnv:WAYLAND_DISPLAY},type=bind",
+        "source=${localEnv:HOME}/.config/emacs,target=/home/${localEnv:USER}/.config/emacs,type=bind",
+        "source=${localEnv:HOME}/.cache/emacs,target=/home/${localEnv:USER}/.cache/emacs,type=bind",
+        "source=${localEnv:HOME}/.gnupg/pubring.kbx,target=/home/${localEnv:USER}/.gnupg/pubring.kbx,type=bind,readonly",
+        "source=${localEnv:HOME}/.gnupg/trustdb.gpg,target=/home/${localEnv:USER}/.gnupg/trustdb.gpg,type=bind,readonly",
+        "source=${localEnv:XDG_RUNTIME_DIR}/gnupg,target=/tmp/container-runtime/gnupg,type=bind"
     ],
     "containerEnv": {
         "TERM": "xterm-256color",
         "DISPLAY": "${localEnv:DISPLAY}",
         "WAYLAND_DISPLAY": "${localEnv:WAYLAND_DISPLAY}",
-        "XDG_RUNTIME_DIR": "/tmp/runtime-1000",
+        "XDG_RUNTIME_DIR": "/tmp/container-runtime",
         "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
         "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}"
     }
@@ -126,11 +129,11 @@ DOCKERFILE_TEMPLATE = """FROM BASE_IMAGE
 
 USER root
 RUN apk add --no-cache nodejs npm
-LABEL devcontainer.metadata='[{"remoteUser":"tsb","workspaceFolder":"/workspace"}]'
+LABEL devcontainer.metadata='[{"remoteUser":"CONTAINER_USER","workspaceFolder":"/workspace"}]'
 
 WORKDIR /workspace
 
-USER tsb
+USER CONTAINER_USER
 """
 
 
@@ -269,12 +272,16 @@ def scaffold_devcontainer(
 
     devcontainer_dir.mkdir(parents=True)
 
+    # Get current username for Dockerfile
+    username = os.environ.get("USER", "dev")
+
     # Write devcontainer.json with substituted project name
     json_content = DEVCONTAINER_JSON_TEMPLATE.replace("PROJECT_NAME", project_name)
     (devcontainer_dir / "devcontainer.json").write_text(json_content)
 
-    # Write Dockerfile with substituted base image
+    # Write Dockerfile with substituted base image and username
     dockerfile_content = DOCKERFILE_TEMPLATE.replace("BASE_IMAGE", config["base_image"])
+    dockerfile_content = dockerfile_content.replace("CONTAINER_USER", username)
     (devcontainer_dir / "Dockerfile").write_text(dockerfile_content)
 
     return True
@@ -296,12 +303,16 @@ def sync_devcontainer(
     devcontainer_dir = target_dir / ".devcontainer"
     devcontainer_dir.mkdir(parents=True, exist_ok=True)
 
+    # Get current username for Dockerfile
+    username = os.environ.get("USER", "dev")
+
     # Write devcontainer.json with substituted project name
     json_content = DEVCONTAINER_JSON_TEMPLATE.replace("PROJECT_NAME", project_name)
     (devcontainer_dir / "devcontainer.json").write_text(json_content)
 
-    # Write Dockerfile with substituted base image
+    # Write Dockerfile with substituted base image and username
     dockerfile_content = DOCKERFILE_TEMPLATE.replace("BASE_IMAGE", config["base_image"])
+    dockerfile_content = dockerfile_content.replace("CONTAINER_USER", username)
     (devcontainer_dir / "Dockerfile").write_text(dockerfile_content)
 
     print(f"Synced .devcontainer/ with current config")
