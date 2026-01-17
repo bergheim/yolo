@@ -1094,10 +1094,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.verbose:
         VERBOSE = True
 
-    # These modes don't need tmux guard (no container attachment)
+    # Sync mode: regenerate .devcontainer, then optionally rebuild with --new
     if args.sync:
         run_sync_mode(args)
-        return
+        if not args.new:
+            return
+        # Fall through to default mode to rebuild container
 
     if args.list:
         run_list_mode(args)
