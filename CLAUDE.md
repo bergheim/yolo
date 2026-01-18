@@ -24,11 +24,11 @@ OPTIONS:
     --create NAME       Create new project with git + devcontainer
     --new               Remove existing container before starting
     --sync              Regenerate .devcontainer from template
-    --list              List containers and worktrees for current project
-    --list --all        List all running devcontainers globally
+    --list              List containers and worktrees (all if outside git repo)
+    --list --all        List all devcontainers globally
     --stop              Stop the current project's container
     --stop --all        Stop all containers for project (worktrees + main)
-    --prune             Clean up stopped containers and stale worktrees
+    --prune             Clean up stopped containers (all if outside git repo)
     --destroy [PATH]    Stop and remove all containers for project (before rm -rf)
     --attach            Attach to running container (error if not running)
     --detach, -d        Start container without attaching
@@ -149,7 +149,7 @@ Worktrees:
     old                  old             [def5678]
 ```
 
-With `--all`, shows all devcontainers globally (not just current project).
+With `--all` or when outside a git repo, shows all devcontainers globally.
 
 ### `--stop`
 
@@ -161,7 +161,7 @@ Find and remove:
 - Stopped containers for the project
 - Stale worktrees (directories that no longer exist)
 
-Prompts for confirmation before deletion.
+Prompts for confirmation before deletion. With `--all` or when outside a git repo, removes all stopped devcontainers globally.
 
 ### `--destroy [PATH]`
 
