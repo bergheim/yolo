@@ -113,7 +113,8 @@ DEVCONTAINER_JSON_TEMPLATE = """{
         "source=${localEnv:HOME}/.cache/emacs,target=/home/${localEnv:USER}/.cache/emacs,type=bind",
         "source=${localEnv:HOME}/.gnupg/pubring.kbx,target=/home/${localEnv:USER}/.gnupg/pubring.kbx,type=bind,readonly",
         "source=${localEnv:HOME}/.gnupg/trustdb.gpg,target=/home/${localEnv:USER}/.gnupg/trustdb.gpg,type=bind,readonly",
-        "source=${localEnv:XDG_RUNTIME_DIR}/gnupg,target=/tmp/container-runtime/gnupg,type=bind"
+        "source=${localEnv:XDG_RUNTIME_DIR}/gnupg/S.gpg-agent,target=/home/${localEnv:USER}/.gnupg/S.gpg-agent,type=bind",
+        "source=${localEnv:HOME}/.config/gh,target=/home/${localEnv:USER}/.config/gh,type=bind,readonly"
     ],
     "containerEnv": {
         "TERM": "xterm-256color",
@@ -1094,12 +1095,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.verbose:
         VERBOSE = True
 
-    # Sync mode: regenerate .devcontainer, then optionally rebuild with --new
+    # These modes don't need tmux guard (no container attachment)
     if args.sync:
         run_sync_mode(args)
-        if not args.new:
-            return
-        # Fall through to default mode to rebuild container
+        return
 
     if args.list:
         run_list_mode(args)
