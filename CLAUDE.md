@@ -247,7 +247,6 @@ Secrets are loaded in this order:
         "source=${localEnv:HOME}/.tmux.conf,target=/home/${localEnv:USER}/.tmux.conf,type=bind,readonly",
         "source=${localEnv:HOME}/.gitconfig,target=/home/${localEnv:USER}/.gitconfig,type=bind,readonly",
         "source=${localEnv:HOME}/.config/tmux,target=/home/${localEnv:USER}/.config/tmux,type=bind,readonly",
-        "source=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY},target=/tmp/container-runtime/${localEnv:WAYLAND_DISPLAY},type=bind",
         "source=${localEnv:HOME}/.config/emacs,target=/home/${localEnv:USER}/.config/emacs,type=bind",
         "source=${localEnv:HOME}/.cache/emacs,target=/home/${localEnv:USER}/.cache/emacs,type=bind",
         "source=${localEnv:HOME}/.gnupg/pubring.kbx,target=/home/${localEnv:USER}/.gnupg/pubring.kbx,type=bind,readonly",
@@ -264,6 +263,11 @@ Secrets are loaded in this order:
         "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}"
     }
 }
+```
+
+**Conditional mount:** When `WAYLAND_DISPLAY` is set, an additional Wayland socket mount is included:
+```
+"source=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY},target=/tmp/container-runtime/${localEnv:WAYLAND_DISPLAY},type=bind"
 ```
 
 ### `Dockerfile`
