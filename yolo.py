@@ -1071,11 +1071,15 @@ def get_or_create_worktree(
     if result.returncode != 0:
         sys.exit("Error: Failed to create git worktree")
 
-    # Copy .devcontainer to worktree
+    # Set up .devcontainer in worktree
     src_devcontainer = git_root / ".devcontainer"
     dst_devcontainer = worktree_path / ".devcontainer"
 
-    if src_devcontainer.exists():
+    if dst_devcontainer.exists():
+        # Already checked out by git worktree (was committed to repo)
+        pass
+    elif src_devcontainer.exists():
+        # Copy from main repo (not committed, just local)
         shutil.copytree(src_devcontainer, dst_devcontainer)
     else:
         # Scaffold new .devcontainer
