@@ -217,6 +217,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--destroy",
+        action="store_true",
+        help="Stop and remove all containers for project (before rm -rf)",
+    )
+
+    parser.add_argument(
         "--attach",
         action="store_true",
         help="Attach to running container (error if not running)",
@@ -718,10 +724,17 @@ def run_stop_mode(args: argparse.Namespace) -> None:
             sys.exit(1)
 
 
-def find_stopped_containers_for_project(git_root: Path) -> list[tuple[str, str]]:
-    """Find stopped containers for a project.
+def find_containers_for_project(
+    git_root: Path, state_filter: str | None = None
+) -> list[tuple[str, str, str]]:
+    """Find containers for a project.
 
-    Returns list of tuples: (container_name, workspace_folder)
+    Args:
+        git_root: The git repository root path
+        state_filter: If set, only return containers in this state (e.g., "running")
+                      If None, return all containers
+
+    Returns list of tuples: (container_name, workspace_folder, state)
     """
     runtime = get_container_runtime()
     if runtime is None:
@@ -732,19 +745,28 @@ def find_stopped_containers_for_project(git_root: Path) -> list[tuple[str, str]]
     # Get all containers (including stopped) with devcontainer label
     all_containers = list_all_devcontainers()
 
-    # Filter to stopped containers that match this project
-    stopped = []
+    # Filter to containers that match this project
+    matched = []
     for name, folder, state in all_containers:
-        if state != "running":
-            # Check if folder is under this project or its worktrees
-            folder_path = Path(folder)
-            if (
-                folder_path == git_root
-                or folder_path.parent.name == f"{project_name}-worktrees"
-            ):
-                stopped.append((name, folder))
+        # Check if folder is under this project or its worktrees
+        folder_path = Path(folder)
+        if (
+            folder_path == git_root
+            or folder_path.parent.name == f"{project_name}-worktrees"
+        ):
+            if state_filter is None or state == state_filter:
+                matched.append((name, folder, state))
 
-    return stopped
+    return matched
+
+
+def find_stopped_containers_for_project(git_root: Path) -> list[tuple[str, str]]:
+    """Find stopped containers for a project.
+
+    Returns list of tuples: (container_name, workspace_folder)
+    """
+    containers = find_containers_for_project(git_root)
+    return [(name, folder) for name, folder, state in containers if state != "running"]
 
 
 def find_stale_worktrees(git_root: Path) -> list[tuple[Path, str]]:
@@ -838,6 +860,68 @@ def run_prune_mode(args: argparse.Namespace) -> None:
             print(f"Removed worktree: {wt_path.name}")
         else:
             print(f"Failed to remove worktree: {wt_path.name}", file=sys.stderr)
+
+
+def run_destroy_mode(args: argparse.Namespace) -> None:
+    """Run --destroy mode: stop and remove all containers for project."""
+    git_root = find_git_root()
+
+    if git_root is None:
+        sys.exit("Error: Not in a git repository.")
+
+    runtime = get_container_runtime()
+    if runtime is None:
+        sys.exit("Error: No container runtime found (docker or podman required)")
+
+    # Find all containers for this project
+    containers = find_containers_for_project(git_root)
+
+    if not containers:
+        print("No containers found for this project.")
+        return
+
+    # Show what will be destroyed
+    print(f"Project: {git_root.name}")
+    print()
+    print("Containers to destroy:")
+    for name, folder, state in containers:
+        print(f"  {name:<24} {state:<10} {folder}")
+    print()
+
+    # Prompt for confirmation
+    try:
+        response = input("Stop and remove these containers? [y/N] ")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+
+    if response.lower() != "y":
+        print("Cancelled.")
+        return
+
+    # Stop running containers first
+    for name, folder, state in containers:
+        if state == "running":
+            cmd = [runtime, "stop", name]
+            verbose_cmd(cmd)
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"Stopped: {name}")
+            else:
+                print(f"Failed to stop {name}: {result.stderr}", file=sys.stderr)
+
+    # Remove all containers
+    for name, folder, state in containers:
+        if remove_container(name):
+            print(f"Removed: {name}")
+        else:
+            print(f"Failed to remove: {name}", file=sys.stderr)
+
+    print()
+    print(f"Done. You can now: rm -rf {git_root}")
+    worktrees_dir = git_root.parent / f"{git_root.name}-worktrees"
+    if worktrees_dir.exists():
+        print(f"              and: rm -rf {worktrees_dir}")
 
 
 def run_attach_mode(args: argparse.Namespace) -> None:
@@ -1186,6 +1270,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.prune:
         run_prune_mode(args)
+        return
+
+    if args.destroy:
+        run_destroy_mode(args)
         return
 
     # Check guards (skip tmux guard if detaching)
