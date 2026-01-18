@@ -12,10 +12,13 @@ cp yolo.py ~/.local/bin/yolo && chmod +x ~/.local/bin/yolo
 
 #+begin_src bash
 yolo                      # start devcontainer in current project
+yolo --init               # initialize git + devcontainer in current dir
 yolo --tree feature-x     # create worktree + devcontainer
-yolo --create newproject  # scaffold new project
+yolo --create newproject  # scaffold new project in new directory
 yolo --list               # show containers/worktrees
 yolo --stop               # stop container
+yolo --destroy            # stop + remove containers (before rm -rf)
+yolo --prune              # clean up stopped containers
 #+end_src
 
 See =CLAUDE.md= for full documentation.

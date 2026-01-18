@@ -130,6 +130,26 @@
 *** DONE Support base_image config
 *** DONE Support custom pass paths (pass_path_anthropic, pass_path_openai)
 
+** --init Flag
+*** DONE Initialize git + devcontainer in current directory
+*** DONE Validate not already in git repo
+*** DONE Update error message to suggest --init
+
+** --destroy Flag
+*** DONE Stop and remove all containers for project
+*** DONE Support optional PATH argument
+*** DONE Prompt for confirmation
+*** DONE Print rm commands to run
+
+** Conditional Mounts
+*** DONE Make Wayland mount conditional on WAYLAND_DISPLAY
+*** DONE Build devcontainer.json dynamically
+
+** UX Improvements
+*** DONE --list works globally when outside git repo
+*** DONE --prune works globally when outside git repo
+*** DONE Fix --tree crash when .devcontainer is committed
+
 * Notes
 ** Container Naming
 - Default: project directory name
