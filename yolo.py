@@ -161,6 +161,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--init",
+        action="store_true",
+        help="Initialize git + devcontainer in current directory",
+    )
+
+    parser.add_argument(
         "--new", action="store_true", help="Remove existing container before starting"
     )
 
@@ -392,6 +398,13 @@ def validate_create_mode(name: str) -> None:
     target_dir = Path.cwd() / name
     if target_dir.exists():
         sys.exit(f"Error: Directory already exists: {target_dir}")
+
+
+def validate_init_mode() -> None:
+    """Validate that --init mode is NOT being run inside a git repo."""
+    git_root = find_git_root()
+    if git_root is not None:
+        sys.exit("Error: Already in a git repository. Use yolo without --init.")
 
 
 def add_worktree_git_mount(devcontainer_json_path: Path, main_git_dir: Path) -> None:
@@ -880,7 +893,7 @@ def run_default_mode(args: argparse.Namespace) -> None:
     git_root = find_git_root()
 
     if git_root is None:
-        sys.exit("Error: Not in a git repository.")
+        sys.exit("Error: Not in a git repository. Use --init to initialize here.")
 
     os.chdir(git_root)
     project_name = git_root.name
@@ -1065,6 +1078,53 @@ def run_create_mode(args: argparse.Namespace) -> None:
     devcontainer_exec_tmux(project_path)
 
 
+def run_init_mode(args: argparse.Namespace) -> None:
+    """Run --init mode: initialize git + devcontainer in current directory."""
+    validate_init_mode()
+
+    project_path = Path.cwd()
+    project_name = project_path.name
+
+    # Load config
+    config = load_config()
+
+    # Initialize git repo
+    cmd = ["git", "init"]
+    verbose_cmd(cmd)
+    result = subprocess.run(cmd, cwd=project_path)
+    if result.returncode != 0:
+        sys.exit("Error: Failed to initialize git repository")
+
+    # Scaffold .devcontainer
+    scaffold_devcontainer(project_name, project_path, config=config)
+
+    # Initial commit with .devcontainer
+    cmd = ["git", "add", ".devcontainer"]
+    verbose_cmd(cmd)
+    subprocess.run(cmd, cwd=project_path)
+
+    cmd = ["git", "commit", "-m", "Initial commit with devcontainer setup"]
+    verbose_cmd(cmd)
+    subprocess.run(cmd, cwd=project_path)
+
+    print(f"Initialized: {project_path}")
+
+    # Set up secrets in environment
+    secrets = get_secrets(config)
+    os.environ.update(secrets)
+
+    # Start devcontainer (always remove existing for fresh project)
+    if not devcontainer_up(project_path, remove_existing=True):
+        sys.exit("Error: Failed to start devcontainer")
+
+    if args.detach:
+        print(f"Container started: {project_name}")
+        return
+
+    # Attach to tmux
+    devcontainer_exec_tmux(project_path)
+
+
 def run_sync_mode(args: argparse.Namespace) -> None:
     """Run --sync mode: regenerate .devcontainer from template."""
     git_root = find_git_root()
@@ -1119,6 +1179,8 @@ def main(argv: list[str] | None = None) -> None:
     # Dispatch to appropriate mode
     if args.attach:
         run_attach_mode(args)
+    elif args.init:
+        run_init_mode(args)
     elif args.create:
         run_create_mode(args)
     elif args.tree is not None:

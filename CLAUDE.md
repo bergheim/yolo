@@ -19,6 +19,7 @@ yolo [OPTIONS]
 
 OPTIONS:
     (none)              Start devcontainer in current git project
+    --init              Initialize git + devcontainer in current directory
     --tree [NAME]       Create git worktree and start devcontainer there
     --create NAME       Create new project with git + devcontainer
     --new               Remove existing container before starting
@@ -40,6 +41,9 @@ OPTIONS:
 ```bash
 # Start devcontainer in current project
 yolo
+
+# Initialize git + devcontainer in existing directory
+yolo --init
 
 # Create a new worktree with random name
 yolo --tree
@@ -85,6 +89,15 @@ yolo -d --tree feature   # create worktree and start
 2. If `.devcontainer/` missing, create it from template
 3. Start devcontainer (skip if already running)
 4. Attach to tmux session `dev`
+
+### `--init`
+
+1. Must NOT be inside a git repo (error otherwise)
+2. Initialize git repo in current directory
+3. Scaffold `.devcontainer/` from template
+4. Commit `.devcontainer/`
+5. Start devcontainer
+6. Attach to tmux session
 
 ### `--tree [NAME]`
 
@@ -161,6 +174,7 @@ Start container without attaching to tmux. Useful for:
 |-----------|----------|
 | Already inside tmux | Error (unless `--detach` is used) |
 | `--tree` outside git repo | Error: "Not in a git repository" |
+| `--init` inside git repo | Error: "Already in a git repository" |
 | `--create` inside git repo | Error: "Already in a git repository" |
 | `--from` branch doesn't exist | Error: "Branch does not exist" |
 | Target directory exists | Error: "Directory already exists" |
