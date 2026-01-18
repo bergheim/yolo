@@ -218,7 +218,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
     parser.add_argument(
         "--destroy",
-        action="store_true",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="PATH",
         help="Stop and remove all containers for project (before rm -rf)",
     )
 
@@ -864,10 +867,18 @@ def run_prune_mode(args: argparse.Namespace) -> None:
 
 def run_destroy_mode(args: argparse.Namespace) -> None:
     """Run --destroy mode: stop and remove all containers for project."""
-    git_root = find_git_root()
-
-    if git_root is None:
-        sys.exit("Error: Not in a git repository.")
+    # If path argument provided, use it; otherwise detect from cwd
+    if args.destroy:
+        target_path = Path(args.destroy).resolve()
+        if not target_path.exists():
+            sys.exit(f"Error: Path does not exist: {target_path}")
+        git_root = find_git_root(target_path)
+        if git_root is None:
+            sys.exit(f"Error: Not a git repository: {target_path}")
+    else:
+        git_root = find_git_root()
+        if git_root is None:
+            sys.exit("Error: Not in a git repository.")
 
     runtime = get_container_runtime()
     if runtime is None:
@@ -1272,7 +1283,7 @@ def main(argv: list[str] | None = None) -> None:
         run_prune_mode(args)
         return
 
-    if args.destroy:
+    if args.destroy is not None:
         run_destroy_mode(args)
         return
 

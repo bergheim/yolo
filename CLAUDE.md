@@ -29,7 +29,7 @@ OPTIONS:
     --stop              Stop the current project's container
     --stop --all        Stop all containers for project (worktrees + main)
     --prune             Clean up stopped containers and stale worktrees
-    --destroy           Stop and remove all containers for project (before rm -rf)
+    --destroy [PATH]    Stop and remove all containers for project (before rm -rf)
     --attach            Attach to running container (error if not running)
     --detach, -d        Start container without attaching
     --from BRANCH       Create worktree from specific branch (use with --tree)
@@ -67,8 +67,9 @@ yolo --stop --all
 yolo --prune
 
 # Destroy project (stop + remove containers, then rm -rf)
-yolo --destroy
-rm -rf ../myproject ../myproject-worktrees
+yolo --destroy myproject      # from parent directory
+yolo --destroy                # or from inside project
+rm -rf myproject myproject-worktrees
 ```
 
 ## Usage Notes
@@ -162,9 +163,11 @@ Find and remove:
 
 Prompts for confirmation before deletion.
 
-### `--destroy`
+### `--destroy [PATH]`
 
 Stop and remove all containers for the project (main + worktrees). Use before `rm -rf` to cleanly delete a project. Prompts for confirmation, then prints the rm commands to run.
+
+Can be run from inside the project or with a path argument from outside.
 
 ### `--attach`
 
