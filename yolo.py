@@ -15,6 +15,13 @@ import sys
 import tomllib
 from pathlib import Path
 
+try:
+    import argcomplete
+
+    HAVE_ARGCOMPLETE = True
+except ImportError:
+    HAVE_ARGCOMPLETE = False
+
 # Word lists for random name generation
 ADJECTIVES = [
     "brave",
@@ -142,6 +149,7 @@ def build_devcontainer_json(project_name: str) -> str:
 
     return json.dumps(config, indent=4)
 
+
 DOCKERFILE_TEMPLATE = """FROM BASE_IMAGE
 
 USER root
@@ -245,6 +253,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Print commands being executed"
     )
+
+    if HAVE_ARGCOMPLETE:
+        argcomplete.autocomplete(parser)
 
     return parser.parse_args(argv)
 
@@ -812,7 +823,9 @@ def remove_worktree(git_root: Path, worktree_path: Path) -> bool:
 def run_prune_global_mode() -> None:
     """Run --prune --all mode: clean up all stopped devcontainers globally."""
     all_containers = list_all_devcontainers()
-    stopped_containers = [(name, folder) for name, folder, state in all_containers if state != "running"]
+    stopped_containers = [
+        (name, folder) for name, folder, state in all_containers if state != "running"
+    ]
 
     if not stopped_containers:
         print("No stopped containers to prune.")
@@ -1303,7 +1316,9 @@ def main(argv: list[str] | None = None) -> None:
     # These modes don't need tmux guard (no container attachment)
     if args.sync:
         run_sync_mode(args)
-        return
+        # Continue to start container if --new was also specified
+        if not args.new:
+            return
 
     if args.list:
         run_list_mode(args)
